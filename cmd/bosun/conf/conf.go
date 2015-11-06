@@ -533,20 +533,6 @@ func (c *Conf) loadGlobal(p *parse.PairNode) {
 		c.LedisDir = v
 	case "redisHost":
 		c.RedisHost = v
-	case "udpPort":
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			c.error(err)
-		}
-		c.UdpListenPort = i
-	case "udpRedisHost":
-		c.UdpRedisHost = v
-	case "udpRedisDb":
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			c.error(err)
-		}
-		c.UdpRedisDb = i
 	case "minGroupSize":
 		i, err := strconv.Atoi(v)
 		if err != nil {

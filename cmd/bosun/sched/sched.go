@@ -96,11 +96,6 @@ func (s *Schedule) Init(c *conf.Conf, isForTest bool) error {
 			return err
 		}
 	}
-	if c.UdpListenPort != 0 && c.UdpRedisHost != "" {
-		if err = collect.ListenUdp(c.UdpListenPort, c.UdpRedisHost, c.UdpRedisDb); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -110,7 +105,6 @@ type checkContext struct {
 }
 
 func init() {
-	metadata.AddMetricMeta("bosun.udp.packets", metadata.Counter, metadata.Count, "Number of complete udp packets received.")
 	metadata.AddMetricMeta(
 		"bosun.schedule.lock_time", metadata.Counter, metadata.MilliSecond,
 		"Length of time spent waiting for or holding the schedule lock.")
