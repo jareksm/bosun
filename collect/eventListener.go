@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"bosun.org/_third_party/github.com/garyburd/redigo/redis"
+	"bosun.org/opentsdb"
 	"bosun.org/slog"
 )
 
@@ -40,6 +41,7 @@ func ListenUdp(port int, redisHost string, redisBucket int) error {
 			slog.Errorf("Too large a udp packet received from: %s. Skipping.", addr.String())
 			continue
 		}
+		Add("udp.packets", opentsdb.TagSet{}, 1)
 		go func(data []byte, addr string) {
 			c := pool.Get()
 			defer c.Close()

@@ -61,11 +61,8 @@ type Schedule struct {
 	DataAccess database.DataAccess
 }
 
-func (s *Schedule) Init(c *conf.Conf) error {
+func (s *Schedule) Init(c *conf.Conf, isForTest bool) error {
 	//initialize all variables and collections so they are ready to use.
-	//this will be called once at app start, and also every time the rule
-	//page runs, so be careful not to spawn long running processes that can't
-	//be avoided.
 	var err error
 	s.Conf = c
 	s.Silence = make(map[string]*Silence)
@@ -74,6 +71,10 @@ func (s *Schedule) Init(c *conf.Conf) error {
 	s.status = make(States)
 	s.LastCheck = time.Now()
 	s.ctx = &checkContext{time.Now(), cache.New(0)}
+	if isForTest {
+		return nil
+	}
+	//All long running processes should go below here. Things that should absolutely not happen for the rule page tests.
 	if s.DataAccess == nil {
 		if c.RedisHost != "" {
 			s.DataAccess = database.NewDataAccess(c.RedisHost, true)
@@ -95,6 +96,11 @@ func (s *Schedule) Init(c *conf.Conf) error {
 			return err
 		}
 	}
+	if c.UdpListenPort != 0 && c.UdpRedisHost != "" {
+		if err = collect.ListenUdp(c.UdpListenPort, c.UdpRedisHost, c.UdpRedisDb); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -104,6 +110,7 @@ type checkContext struct {
 }
 
 func init() {
+	metadata.AddMetricMeta("bosun.udp.packets", metadata.Counter, metadata.Count, "Number of complete udp packets received.")
 	metadata.AddMetricMeta(
 		"bosun.schedule.lock_time", metadata.Counter, metadata.MilliSecond,
 		"Length of time spent waiting for or holding the schedule lock.")
@@ -495,7 +502,7 @@ var DefaultSched = &Schedule{}
 
 // Load loads a configuration into the default schedule.
 func Load(c *conf.Conf) error {
-	return DefaultSched.Load(c)
+	return DefaultSched.load(c)
 }
 
 // Run runs the default schedule.
@@ -503,8 +510,8 @@ func Run() error {
 	return DefaultSched.Run()
 }
 
-func (s *Schedule) Load(c *conf.Conf) error {
-	if err := s.Init(c); err != nil {
+func (s *Schedule) load(c *conf.Conf) error {
+	if err := s.Init(c, false); err != nil {
 		return err
 	}
 	if s.db == nil {

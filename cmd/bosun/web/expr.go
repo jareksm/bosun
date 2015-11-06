@@ -127,7 +127,7 @@ func procRule(t miniprofiler.Timer, c *conf.Conf, a *conf.Alert, now time.Time, 
 	s := &sched.Schedule{}
 	s.DataAccess = schedule.DataAccess
 	s.Search = schedule.Search
-	if err := s.Init(c); err != nil {
+	if err := s.Init(c, true); err != nil {
 		return nil, err
 	}
 	rh := s.NewRunHistory(now, cacheObj)

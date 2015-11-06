@@ -68,6 +68,10 @@ type Conf struct {
 	LogstashElasticHosts expr.LogstashElasticHosts // CSV Elastic Hosts (All part of the same cluster) that stores logstash documents, i.e http://ny-elastic01:9200
 	InfluxConfig         client.Config
 
+	UdpListenPort int
+	UdpRedisHost  string
+	UdpRedisDb    int
+
 	tree            *parse.Tree
 	node            parse.Node
 	unknownTemplate string
@@ -529,6 +533,20 @@ func (c *Conf) loadGlobal(p *parse.PairNode) {
 		c.LedisDir = v
 	case "redisHost":
 		c.RedisHost = v
+	case "udpPort":
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			c.error(err)
+		}
+		c.UdpListenPort = i
+	case "udpRedisHost":
+		c.UdpRedisHost = v
+	case "udpRedisDb":
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			c.error(err)
+		}
+		c.UdpRedisDb = i
 	case "minGroupSize":
 		i, err := strconv.Atoi(v)
 		if err != nil {

@@ -103,7 +103,7 @@ func initSched(c *conf.Conf) (*Schedule, error) {
 		failingAlerts: map[string]bool{},
 		incidents:     map[uint64]*models.Incident{},
 	}
-	err := s.Init(c)
+	err := s.Init(c, false)
 	return s, err
 }
 
