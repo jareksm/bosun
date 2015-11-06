@@ -3,7 +3,6 @@ package collect
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"net"
 	"syscall"
 	"time"
@@ -72,11 +71,12 @@ func incrementRedisCounter(data []byte, addr string, conn redis.Conn) {
 		return
 	}
 	mts := string(data[4:])
-	//HINCRBY hashKey mts i
-	if _, err = conn.Do("HINCRBY", "scollectorCounters", mts, i); err != nil {
+	if _, err = conn.Do("HINCRBY", RedisCountersKey, mts, i); err != nil {
 		slog.Errorf("Error incrementing counter %s by %d. From %s. %s", mts, i, addr, err)
 	}
 }
+
+const RedisCountersKey = "scollectorCounters"
 
 func newRedisPool(server string, database int) *redis.Pool {
 	return &redis.Pool{
