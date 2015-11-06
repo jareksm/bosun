@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bosun.org/_third_party/github.com/garyburd/redigo/redis"
+	"bosun.org/cmd/scollector/conf"
 	"bosun.org/collect"
 	"bosun.org/metadata"
 	"bosun.org/opentsdb"
@@ -13,18 +14,22 @@ import (
 )
 
 func init() {
-	collectors = append(collectors,
-		&IntervalCollector{
-			name: "redisCounters",
-			F: func() (opentsdb.MultiDataPoint, error) {
-				return c_redis_counters("localhost:6379", 2)
-			},
-		})
+	registerInit(func(c *conf.Conf) {
+		for _, red := range c.RedisCounters {
+			collectors = append(collectors,
+				&IntervalCollector{
+					name: "redisCounters_" + red.Server,
+					F: func() (opentsdb.MultiDataPoint, error) {
+						return c_redis_counters(red.Server, red.Database)
+					},
+				})
+		}
+	})
 }
 
-func c_redis_counters(server string, bucket int) (opentsdb.MultiDataPoint, error) {
+func c_redis_counters(server string, db int) (opentsdb.MultiDataPoint, error) {
 	var md opentsdb.MultiDataPoint
-	conn, err := redis.Dial("tcp", server, redis.DialDatabase(bucket))
+	conn, err := redis.Dial("tcp", server, redis.DialDatabase(db))
 	if err != nil {
 		return md, err
 	}
