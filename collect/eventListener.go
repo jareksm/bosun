@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
-	"syscall"
 	"time"
 
 	"bosun.org/_third_party/github.com/garyburd/redigo/redis"
@@ -31,14 +30,13 @@ func ListenUdp(port int, redisHost string, redisBucket int) error {
 	}
 	pool := newRedisPool(redisHost, redisBucket)
 	for {
-		buff := make([]byte, 1024)
-		oob := make([]byte, 1024)
-		n, _, flags, addr, err := conn.ReadMsgUDP(buff, oob)
+		buf := make([]byte, 1025)
+		n, addr, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			slog.Error(err)
 			continue
 		}
-		if flags&syscall.MSG_TRUNC != 0 {
+		if n == len(buf) { // if we get a full buffer, assume some was truncated.
 			slog.Errorf("Too large a udp packet received from: %s. Skipping.", addr.String())
 			continue
 		}
@@ -54,7 +52,7 @@ func ListenUdp(port int, redisHost string, redisBucket int) error {
 			default:
 				slog.Errorf("Unknown opcode %d from %s.", data[0], addr)
 			}
-		}(buff[:n], addr.String())
+		}(buf[:n], addr.String())
 	}
 }
 
