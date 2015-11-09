@@ -20,7 +20,7 @@ Opcodes:
  1: increment - increments a redis counter for the specified metric/tag set
      data: count(4 bytes signed int) | metric:tag1=foo,tag2=bar
 */
-func ListenUdp(port int, redisHost string, redisBucket int) error {
+func ListenUdp(port int, redisHost string, redisDb int) error {
 	addr := net.UDPAddr{
 		Port: port,
 		IP:   net.ParseIP("127.0.0.1"),
@@ -29,7 +29,7 @@ func ListenUdp(port int, redisHost string, redisBucket int) error {
 	if err != nil {
 		return err
 	}
-	pool := newRedisPool(redisHost, redisBucket)
+	pool := newRedisPool(redisHost, redisDb)
 	for {
 		buf := make([]byte, 1025)
 		n, addr, err := conn.ReadFromUDP(buf)
