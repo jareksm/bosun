@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"bosun.org/cmd/tsdbrelay/denormalize"
+	"bosun.org/collect"
 	"bosun.org/opentsdb"
 	"bosun.org/util"
 )
@@ -106,6 +107,16 @@ func main() {
 		rp.relayMetadata(w, r)
 	})
 	http.Handle("/", tsdbProxy)
+
+	collectUrl := &url.URL{
+		Scheme: "http",
+		Host:   *listenAddr,
+		Path:   "/api/put",
+	}
+	if err = collect.Init(collectUrl, "tsdbrelay"); err != nil {
+		log.Fatal(err)
+	}
+	collect.Print = true
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }
 
