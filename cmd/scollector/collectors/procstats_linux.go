@@ -2,7 +2,6 @@ package collectors
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,15 +12,6 @@ import (
 func init() {
 	collectors = append(collectors, &IntervalCollector{F: c_procstats_linux})
 }
-
-var uptimeRE = regexp.MustCompile(`(\S+)\s+(\S+)`)
-var meminfoRE = regexp.MustCompile(`(\w+):\s+(\d+)\s+(\w+)`)
-var vmstatRE = regexp.MustCompile(`(\w+)\s+(\d+)`)
-var statRE = regexp.MustCompile(`(\w+)\s+(.*)`)
-var statCPURE = regexp.MustCompile(`cpu(\d+)`)
-var cpuspeedRE = regexp.MustCompile(`cpu MHz\s+: ([\d.]+)`)
-var loadavgRE = regexp.MustCompile(`(\S+)\s+(\S+)\s+(\S+)\s+(\d+)/(\d+)\s+`)
-var inoutRE = regexp.MustCompile(`(.*)(in|out)`)
 
 var CPU_FIELDS = []string{
 	"user",
@@ -40,29 +30,31 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 	var md opentsdb.MultiDataPoint
 	var Error error
 	if err := readLine("/proc/uptime", func(s string) error {
-		m := uptimeRE.FindStringSubmatch(s)
+		m := strings.Split(s, " ")
 		if m == nil {
 			return nil
 		}
-		Add(&md, "linux.uptime_total", m[1], nil, metadata.Gauge, metadata.Second, osSystemUptimeDesc)
-		Add(&md, "linux.uptime_now", m[2], nil, metadata.Gauge, metadata.Second, "")
-		Add(&md, osSystemUptime, m[1], nil, metadata.Gauge, metadata.Second, osSystemUptimeDesc)
+		Add(&md, "linux.uptime_total", m[0], nil, metadata.Gauge, metadata.Second, osSystemUptimeDesc)
+		Add(&md, "linux.uptime_now", m[1], nil, metadata.Gauge, metadata.Second, "")
+		Add(&md, osSystemUptime, m[0], nil, metadata.Gauge, metadata.Second, osSystemUptimeDesc)
 		return nil
 	}); err != nil {
 		Error = err
 	}
 	mem := make(map[string]float64)
 	if err := readLine("/proc/meminfo", func(s string) error {
-		m := meminfoRE.FindStringSubmatch(s)
+		s = strings.TrimSuffix(s, " kB")
+		m := strings.Split(s, ":")
 		if m == nil {
 			return nil
 		}
-		i, err := strconv.ParseFloat(m[2], 64)
+		m[1] = strings.TrimSpace(m[1])
+		i, err := strconv.ParseFloat(m[1], 64)
 		if err != nil {
 			return err
 		}
-		mem[m[1]] = i
-		Add(&md, "linux.mem."+strings.ToLower(m[1]), m[2], nil, metadata.Gauge, metadata.KBytes, "")
+		mem[m[0]] = i
+		Add(&md, "linux.mem."+strings.ToLower(m[0]), m[1], nil, metadata.Gauge, metadata.KBytes, "")
 		return nil
 	}); err != nil {
 		Error = err
@@ -74,20 +66,22 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		Add(&md, osMemPctFree, (mem["MemFree"]+mem["Buffers"]+mem["Cached"])/mem["MemTotal"]*100, nil, metadata.Gauge, metadata.Pct, osMemFreeDesc)
 	}
 	if err := readLine("/proc/vmstat", func(s string) error {
-		m := vmstatRE.FindStringSubmatch(s)
+		m := strings.Split(s, " ")
 		if m == nil {
 			return nil
 		}
-		switch m[1] {
-		case "pgpgin", "pgpgout", "pswpin", "pswpout", "pgfault", "pgmajfault":
-			mio := inoutRE.FindStringSubmatch(m[1])
-			if mio != nil {
-				Add(&md, "linux.mem."+mio[1], m[2], opentsdb.TagSet{"direction": mio[2]}, metadata.Counter, metadata.Page, "")
-			} else {
-				Add(&md, "linux.mem."+m[1], m[2], nil, metadata.Counter, metadata.Page, "")
+		switch m[0] {
+		case "pgpgin", "pgpgout", "pswpin", "pswpout":
+			switch {
+			case strings.HasSuffix(m[0], "in"):
+				Add(&md, "linux.mem."+strings.TrimSuffix(m[0], "in"), m[1], opentsdb.TagSet{"direction": "in"}, metadata.Counter, metadata.Page, "")
+			case strings.HasSuffix(m[0], "out"):
+				Add(&md, "linux.mem."+strings.TrimSuffix(m[0], "out"), m[1], opentsdb.TagSet{"direction": "out"}, metadata.Counter, metadata.Page, "")
 			}
+		case "pgfault", "pgmajfault":
+			Add(&md, "linux.mem."+m[0], m[1], nil, metadata.Counter, metadata.Page, "")
 		default:
-			Add(&md, "linux.mem."+m[1], m[2], nil, metadata.Counter, metadata.None, "")
+			Add(&md, "linux.mem."+m[0], m[1], nil, metadata.Counter, metadata.None, "")
 		}
 		return nil
 	}); err != nil {
@@ -108,20 +102,19 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		"guest_nice": "Running a niced guest vm.",
 	}
 	if err := readLine("/proc/stat", func(s string) error {
-		m := statRE.FindStringSubmatch(s)
+		m := strings.Split(s, " ")
 		if m == nil {
 			return nil
 		}
-		if strings.HasPrefix(m[1], "cpu") {
+		switch {
+		case strings.HasPrefix(m[0], "cpu"):
 			metric_percpu := ""
-			tag_cpu := ""
-			cpu_m := statCPURE.FindStringSubmatch(m[1])
-			if cpu_m != nil {
-				num_cores += 1
+			tag_cpu := strings.TrimPrefix(m[0], "cpu")
+			if tag_cpu != "" {
+				num_cores++
 				metric_percpu = ".percpu"
-				tag_cpu = cpu_m[1]
 			}
-			fields := strings.Fields(m[2])
+			fields := strings.Fields(m[1])
 			for i, value := range fields {
 				if i >= len(CPU_FIELDS) {
 					break
@@ -132,7 +125,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 				if tag_cpu != "" {
 					tags["cpu"] = tag_cpu
 				}
-				Add(&md, "linux.cpu"+metric_percpu, value, tags, metadata.Counter, metadata.CHz, cpu_stat_desc[CPU_FIELDS[i]])
+				Add(&md, "linux.cpu.percpu", value, tags, metadata.Counter, metadata.CHz, cpu_stat_desc[CPU_FIELDS[i]])
 			}
 			if metric_percpu == "" {
 				if len(fields) < 3 {
@@ -152,15 +145,15 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 				}
 				t_util = user + nice + system
 			}
-		} else if m[1] == "intr" {
-			Add(&md, "linux.intr", strings.Fields(m[2])[0], nil, metadata.Counter, metadata.Interupt, "")
-		} else if m[1] == "ctxt" {
-			Add(&md, "linux.ctxt", m[2], nil, metadata.Counter, metadata.ContextSwitch, "")
-		} else if m[1] == "processes" {
-			Add(&md, "linux.processes", m[2], nil, metadata.Counter, metadata.Process,
+		case m[0] == "intr":
+			Add(&md, "linux.intr", strings.Fields(m[1])[0], nil, metadata.Counter, metadata.Interupt, "")
+		case m[0] == "ctxt":
+			Add(&md, "linux.ctxt", m[1], nil, metadata.Counter, metadata.ContextSwitch, "")
+		case m[0] == "processes":
+			Add(&md, "linux.processes", m[1], nil, metadata.Counter, metadata.Process,
 				"The number  of processes and threads created, which includes (but  is not limited  to) those  created by  calls to the  fork() and clone() system calls.")
-		} else if m[1] == "procs_blocked" {
-			Add(&md, "linux.procs_blocked", m[2], nil, metadata.Gauge, metadata.Process, "The  number of  processes currently blocked, waiting for I/O to complete.")
+		case m[0] == "procs_blocked":
+			Add(&md, "linux.procs_blocked", m[1], nil, metadata.Gauge, metadata.Process, "The  number of  processes currently blocked, waiting for I/O to complete.")
 		}
 		return nil
 	}); err != nil {
@@ -171,28 +164,34 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 	}
 	cpuinfo_index := 0
 	if err := readLine("/proc/cpuinfo", func(s string) error {
-		m := cpuspeedRE.FindStringSubmatch(s)
-		if m == nil {
+		m := strings.Split(s, ":")
+		if len(m) < 2 {
+			return nil
+		}
+		m[0] = strings.TrimSpace(m[0])
+		m[1] = strings.TrimSpace(m[1])
+		if m[0] != "cpu MHz" {
 			return nil
 		}
 		tags := opentsdb.TagSet{"cpu": strconv.Itoa(cpuinfo_index)}
 		Add(&md, osCPUClock, m[1], tags, metadata.Gauge, metadata.MHz, osCPUClockDesc)
 		Add(&md, "linux.cpu.clock", m[1], tags, metadata.Gauge, metadata.MHz, osCPUClockDesc)
-		cpuinfo_index += 1
+		cpuinfo_index++
 		return nil
 	}); err != nil {
 		Error = err
 	}
 	if err := readLine("/proc/loadavg", func(s string) error {
-		m := loadavgRE.FindStringSubmatch(s)
+		m := strings.Split(s, " ")
+		lp := strings.Split(m[3], "/")
 		if m == nil {
 			return nil
 		}
-		Add(&md, "linux.loadavg_1_min", m[1], nil, metadata.Gauge, metadata.Load, "")
-		Add(&md, "linux.loadavg_5_min", m[2], nil, metadata.Gauge, metadata.Load, "")
-		Add(&md, "linux.loadavg_15_min", m[3], nil, metadata.Gauge, metadata.Load, "")
-		Add(&md, "linux.loadavg_runnable", m[4], nil, metadata.Gauge, metadata.Process, "")
-		Add(&md, "linux.loadavg_total_threads", m[5], nil, metadata.Gauge, metadata.Process, "")
+		Add(&md, "linux.loadavg_1_min", m[0], nil, metadata.Gauge, metadata.Load, "")
+		Add(&md, "linux.loadavg_5_min", m[1], nil, metadata.Gauge, metadata.Load, "")
+		Add(&md, "linux.loadavg_15_min", m[2], nil, metadata.Gauge, metadata.Load, "")
+		Add(&md, "linux.loadavg_runnable", lp[0], nil, metadata.Gauge, metadata.Process, "")
+		Add(&md, "linux.loadavg_total_threads", lp[1], nil, metadata.Gauge, metadata.Process, "")
 		return nil
 	}); err != nil {
 		Error = err
@@ -310,7 +309,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 				Add(&md, m, v, nil, metadata.Counter, metadata.None, "")
 			}
 		}
-		ln += 1
+		ln++
 		return nil
 	}); err != nil {
 		Error = err
