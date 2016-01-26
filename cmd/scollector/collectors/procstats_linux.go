@@ -226,19 +226,18 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 			return nil
 		}
 		irq_type := strings.TrimRight(cols[0], ":")
-		if !IsAlNum(irq_type) {
-			return nil
-		}
-		if IsDigit(irq_type) {
+		if _, err := strconv.Atoi(irq_type); err == nil {
 			if cols[len(cols)-2] == "PCI-MSI-edge" && strings.Contains(cols[len(cols)-1], "eth") {
 				irq_type = cols[len(cols)-1]
 			} else {
 				// Interrupt type is just a number, ignore.
 				return nil
 			}
+		} else {
+			return nil
 		}
 		for i, val := range cols[1:] {
-			if i >= num_cpus || !IsDigit(val) {
+			if _, err := strconv.Atoi(val); i >= num_cpus || err != nil {
 				// All values read, remaining cols contain textual description.
 				break
 			}
