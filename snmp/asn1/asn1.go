@@ -21,6 +21,7 @@ package asn1
 //
 // This package relaxes some of the restrictions of DER in order to facilitate interacting with BER systems.
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
@@ -202,16 +203,16 @@ func (oi ObjectIdentifier) Equal(other ObjectIdentifier) bool {
 }
 
 func (oi ObjectIdentifier) String() string {
-	var s string
+	var s bytes.Buffer
 
 	for i, v := range oi {
 		if i > 0 {
-			s += "."
+			s.WriteRune('.')
 		}
-		s += strconv.Itoa(v)
+		s.WriteString(strconv.Itoa(v))
 	}
 
-	return s
+	return s.String()
 }
 
 // parseObjectIdentifier parses an OBJECT IDENTIFIER from the given bytes and
