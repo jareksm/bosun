@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
 	"time"
 
 	"bosun.org/_third_party/gopkg.in/yaml.v1"
@@ -24,6 +23,16 @@ const (
 	puppetDisabled   = "/var/lib/puppet/state/agent_disabled.lock"
 )
 
+var PRSLastRun int64 = 0
+
+func checkIfPRun(last_run int64) bool {
+	if PRSLastRun <= last_run {
+		return false
+	}
+	PRSLastRun = last_run
+	return true
+}
+
 func puppetEnable() bool {
 	_, err := os.Stat(puppetPath)
 	return err == nil
@@ -31,24 +40,28 @@ func puppetEnable() bool {
 
 type PRSummary struct {
 	Changes struct {
-		Total float64 `yaml:"total"`
+		Total uint64 `yaml:"total"`
 	} `yaml:"changes"`
 	Events struct {
-		Failure float64 `yaml:"failure"`
-		Success float64 `yaml:"success"`
-		Total   float64 `yaml:"total"`
+		Failure uint64 `yaml:"failure"`
+		Success uint64 `yaml:"success"`
+		Total   uint64 `yaml:"total"`
 	} `yaml:"events"`
 	Resources struct {
-		Changed         float64 `yaml:"changed"`
-		Failed          float64 `yaml:"failed"`
-		FailedToRestart float64 `yaml:"failed_to_restart"`
-		OutOfSync       float64 `yaml:"out_of_sync"`
-		Restarted       float64 `yaml:"restarted"`
-		Scheduled       float64 `yaml:"scheduled"`
-		Skipped         float64 `yaml:"skipped"`
-		Total           float64 `yaml:"total"`
+		Changed         uint64 `yaml:"changed"`
+		Failed          uint64 `yaml:"failed"`
+		FailedToRestart uint64 `yaml:"failed_to_restart"`
+		OutOfSync       uint64 `yaml:"out_of_sync"`
+		Restarted       uint64 `yaml:"restarted"`
+		Scheduled       uint64 `yaml:"scheduled"`
+		Skipped         uint64 `yaml:"skipped"`
+		Total           uint64 `yaml:"total"`
 	} `yaml:"resources"`
-	Time    map[string]string `yaml:"time"`
+	Time struct {
+		LastRun         int64   `yaml:"last_run"`
+		ConfigRetrieval float64 `yaml:"config_retrieval"`
+		Total           float64 `yaml:"total"`
+	} `yaml:"time"`
 	Version struct {
 		Config string `yaml:"config"`
 		Puppet string `yaml:"puppet"`
@@ -87,30 +100,24 @@ func puppet_linux() (opentsdb.MultiDataPoint, error) {
 	if err = yaml.Unmarshal(s, &m); err != nil {
 		return nil, err
 	}
-	last_run, err := strconv.ParseInt(m.Time["last_run"], 10, 64)
-	seconds_since_run := time.Now().Unix() - last_run
-	//m.Version.Config appears to be the unix timestamp
-	AddTS(&md, "puppet.run.resources", last_run, m.Resources.Changed, opentsdb.TagSet{"resource": "changed"}, metadata.Gauge, metadata.Count, descPuppetChanged)
-	AddTS(&md, "puppet.run.resources", last_run, m.Resources.Failed, opentsdb.TagSet{"resource": "failed"}, metadata.Gauge, metadata.Count, descPuppetFailed)
-	AddTS(&md, "puppet.run.resources", last_run, m.Resources.FailedToRestart, opentsdb.TagSet{"resource": "failed_to_restart"}, metadata.Gauge, metadata.Count, descPuppetFailedToRestart)
-	AddTS(&md, "puppet.run.resources", last_run, m.Resources.OutOfSync, opentsdb.TagSet{"resource": "out_of_sync"}, metadata.Gauge, metadata.Count, descPuppetOutOfSync)
-	AddTS(&md, "puppet.run.resources", last_run, m.Resources.Restarted, opentsdb.TagSet{"resource": "restarted"}, metadata.Gauge, metadata.Count, descPuppetRestarted)
-	AddTS(&md, "puppet.run.resources", last_run, m.Resources.Scheduled, opentsdb.TagSet{"resource": "scheduled"}, metadata.Gauge, metadata.Count, descPuppetScheduled)
-	AddTS(&md, "puppet.run.resources", last_run, m.Resources.Skipped, opentsdb.TagSet{"resource": "skipped"}, metadata.Gauge, metadata.Count, descPuppetSkipped)
-	AddTS(&md, "puppet.run.resources_total", last_run, m.Resources.Total, nil, metadata.Gauge, metadata.Count, descPuppetTotalResources)
-	AddTS(&md, "puppet.run.changes", last_run, m.Changes.Total, nil, metadata.Gauge, metadata.Count, descPuppetTotalChanges)
-	Add(&md, "puppet.last_run", seconds_since_run, nil, metadata.Gauge, metadata.Second, descPuppetLastRun)
-	for k, v := range m.Time {
-		metric, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			return md, fmt.Errorf("Error parsing time: %s", err)
-		}
-		if k == "total" {
-			AddTS(&md, "puppet.run_duration_total", last_run, metric, nil, metadata.Gauge, metadata.Second, descPuppetTotalTime)
-		} else if k != "last_run" {
-			AddTS(&md, "puppet.run_duration", last_run, metric, opentsdb.TagSet{"time": k}, metadata.Gauge, metadata.Second, descPuppetModuleTime)
-		}
+	pr := checkIfPRun
+	if !pr(m.Time.LastRun) {
+		return nil, nil
 	}
+	seconds_since_run := time.Now().Unix() - m.Time.LastRun
+	//m.Version.Config appears to be the unix timestamp
+	AddTS(&md, "puppet.run.resources", m.Time.LastRun, m.Resources.Changed, opentsdb.TagSet{"resource": "changed"}, metadata.Gauge, metadata.Count, descPuppetChanged)
+	AddTS(&md, "puppet.run.resources", m.Time.LastRun, m.Resources.Failed, opentsdb.TagSet{"resource": "failed"}, metadata.Gauge, metadata.Count, descPuppetFailed)
+	AddTS(&md, "puppet.run.resources", m.Time.LastRun, m.Resources.FailedToRestart, opentsdb.TagSet{"resource": "failed_to_restart"}, metadata.Gauge, metadata.Count, descPuppetFailedToRestart)
+	AddTS(&md, "puppet.run.resources", m.Time.LastRun, m.Resources.OutOfSync, opentsdb.TagSet{"resource": "out_of_sync"}, metadata.Gauge, metadata.Count, descPuppetOutOfSync)
+	AddTS(&md, "puppet.run.resources", m.Time.LastRun, m.Resources.Restarted, opentsdb.TagSet{"resource": "restarted"}, metadata.Gauge, metadata.Count, descPuppetRestarted)
+	AddTS(&md, "puppet.run.resources", m.Time.LastRun, m.Resources.Scheduled, opentsdb.TagSet{"resource": "scheduled"}, metadata.Gauge, metadata.Count, descPuppetScheduled)
+	AddTS(&md, "puppet.run.resources", m.Time.LastRun, m.Resources.Skipped, opentsdb.TagSet{"resource": "skipped"}, metadata.Gauge, metadata.Count, descPuppetSkipped)
+	AddTS(&md, "puppet.run.resources_total", m.Time.LastRun, m.Resources.Total, nil, metadata.Gauge, metadata.Count, descPuppetTotalResources)
+	AddTS(&md, "puppet.run.changes", m.Time.LastRun, m.Changes.Total, nil, metadata.Gauge, metadata.Count, descPuppetTotalChanges)
+	AddTS(&md, "puppet.run.duration.total", m.Time.LastRun, m.Time.Total, nil, metadata.Gauge, metadata.Second, descPuppetTotalTime)
+	AddTS(&md, "puppet.run_duration.config_retrieval", m.Time.LastRun, m.Time.ConfigRetrieval, nil, metadata.Gauge, metadata.Second, descPuppetModuleTime)
+	Add(&md, "puppet.last_run", seconds_since_run, nil, metadata.Gauge, metadata.Second, descPuppetLastRun)
 
 	// Not all hosts will use puppet run reports
 	if _, err := os.Stat(puppetRunReport); err == nil {
