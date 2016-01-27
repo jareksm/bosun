@@ -184,9 +184,11 @@ func (t TagSet) Tags() string {
 	b := &bytes.Buffer{}
 	for i, k := range keys {
 		if i > 0 {
-			fmt.Fprint(b, ",")
+			b.WriteRune(',')
 		}
-		fmt.Fprintf(b, "%s=%s", k, t[k])
+		b.WriteString(k)
+		b.WriteRune('=')
+		b.WriteString(t[k])
 	}
 	return b.String()
 }
@@ -197,19 +199,20 @@ func (t TagSet) AllSubsets() []string {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	return t.allSubsets("", 0, keys)
+	return t.allSubsets(&bytes.Buffer{}, 0, keys)
 }
 
-func (t TagSet) allSubsets(base string, start int, keys []string) []string {
+func (t TagSet) allSubsets(base *bytes.Buffer, start int, keys []string) []string {
 	subs := []string{}
 	for i := start; i < len(keys); i++ {
-		part := base
-		if part != "" {
-			part += ","
+		if base.Len() > 0 {
+			base.WriteRune(',')
 		}
-		part += fmt.Sprintf("%s=%s", keys[i], t[keys[i]])
-		subs = append(subs, part)
-		subs = append(subs, t.allSubsets(part, i+1, keys)...)
+		base.WriteString(keys[i])
+		base.WriteRune('=')
+		base.WriteString(t[keys[i]])
+		subs = append(subs, base.String())
+		subs = append(subs, t.allSubsets(base, i+1, keys)...)
 	}
 	return subs
 }
@@ -307,23 +310,23 @@ func Clean(s string) (string, error) {
 // tag values and replaces them.
 // See: http://opentsdb.net/docs/build/html/user_guide/writing.html#metrics-and-tags
 func Replace(s, replacement string) (string, error) {
-	var c string
+	c := &bytes.Buffer{}
 	replaced := false
 	for len(s) > 0 {
 		r, size := utf8.DecodeRuneInString(s)
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == '.' || r == '/' {
-			c += string(r)
+			c.WriteRune(r)
 			replaced = false
 		} else if !replaced {
-			c += replacement
+			c.WriteString(replacement)
 			replaced = true
 		}
 		s = s[size:]
 	}
-	if len(c) == 0 {
+	if c.Len() == 0 {
 		return "", fmt.Errorf("clean result is empty")
 	}
-	return c, nil
+	return c.String(), nil
 }
 
 // MustReplace is like Replace, but returns an empty string on error.
