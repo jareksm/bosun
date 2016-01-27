@@ -6,7 +6,31 @@ type SnmpDevice interface {
 	BuildIface() error
 }
 
+type Pkts struct {
+	in, out uint64
+}
+
+type SnmpIface struct {
+	name        string
+	alias       string
+	desc        string
+	ifType      string
+	mtu         string
+	mac         string
+	hiSpeed     string
+	adminStatus string
+	operStatus  string
+	Brd         Pkts
+	Mcst        Pkts
+	Ucst        Pkts
+	Oct         Pkts
+	Discards    Pkts
+	Errors      Pkts
+	PauseFrames Pkts
+}
+
 type GenericDevice struct {
+	Iface []SnmpIface
 }
 
 type CiscoSwitch struct {
