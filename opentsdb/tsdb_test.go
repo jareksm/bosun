@@ -1,8 +1,6 @@
 package opentsdb
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestClean(t *testing.T) {
 	clean := "aoeSNVT152-./_"
@@ -326,5 +324,13 @@ func TestAllSubsets(t *testing.T) {
 	subsets := ts.AllSubsets()
 	if len(subsets) != 15 {
 		t.Fatal("Expect 15 subsets")
+	}
+}
+
+func BenchmarkAllSubsets(b *testing.B) {
+	ts, _ := ParseTags("a=1,b=2,c=3,d=4")
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		ts.AllSubsets()
 	}
 }
