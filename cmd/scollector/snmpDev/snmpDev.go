@@ -45,13 +45,19 @@ type Iface struct {
 	adminStatus string
 	operStatus  string
 	lastChange  uint64 // 100 Timeticks = 1sec
-	Brd         Pkts
-	Mcst        Pkts
-	Ucst        Pkts
-	Oct         Pkts
-	Discards    Pkts
-	Errors      Pkts
-	PauseFrames Pkts
+	brd         Pkts
+	mcst        Pkts
+	ucst        Pkts
+	oct         Pkts
+	discards    Pkts
+	errors      Pkts
+	pauseFrames Pkts
+}
+
+type MemPool struct {
+	PoolType string
+	Used     uint
+	Free     uint
 }
 
 type PhysHdw struct {
@@ -71,6 +77,9 @@ type PhysHdw struct {
 type GenericDevice struct {
 	Ports    map[int]Iface
 	Hardware map[int]PhysHdw
+	Mem      []MemPool
+	Cpu      int
+	Desc     string
 }
 
 type CiscoSwitch struct {
