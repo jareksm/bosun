@@ -1,4 +1,4 @@
-package collectors
+package snmpDev
 
 type SnmpDevice interface {
 	New(h, c string) error
@@ -6,11 +6,35 @@ type SnmpDevice interface {
 	BuildIface() error
 }
 
+type PhysClass int
+
+const (
+	other PhysClass = iota + 1
+	unknown
+	chassis
+	backplane
+	container
+	powerSupply
+	fan
+	sensor
+	module
+	port
+	stack
+	cpu
+)
+
 type Pkts struct {
 	in, out uint64
 }
 
-type SnmpIface struct {
+type Revision struct {
+	Hdw      string
+	Firmware string
+	Software string
+}
+
+type Iface struct {
+	ifIndex     int
 	name        string
 	alias       string
 	desc        string
@@ -20,6 +44,7 @@ type SnmpIface struct {
 	hiSpeed     string
 	adminStatus string
 	operStatus  string
+	lastChange  uint64 // 100 Timeticks = 1sec
 	Brd         Pkts
 	Mcst        Pkts
 	Ucst        Pkts
@@ -29,8 +54,23 @@ type SnmpIface struct {
 	PauseFrames Pkts
 }
 
+type PhysHdw struct {
+	Desc   string
+	Vendor string
+	Class  PhysClass
+	Name   string
+	Rev    Revision
+	Serial string
+	Mfg    string
+	Model  string
+	Alias  string
+	Asset  string
+	FRU    bool
+}
+
 type GenericDevice struct {
-	Iface []SnmpIface
+	Ports    []Iface
+	Hardware []PhysHdw
 }
 
 type CiscoSwitch struct {

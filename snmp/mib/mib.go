@@ -41,8 +41,6 @@ func Lookup(prefix string) (asn1.ObjectIdentifier, error) {
 	cmd := exec.Command(
 		"snmptranslate",
 		"-Le",
-		"-M", "+"+mibDir,
-		"-m", "all",
 		"-On",
 		"-IR",
 		prefix,
