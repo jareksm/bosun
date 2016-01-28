@@ -24,64 +24,77 @@ const (
 )
 
 type Pkts struct {
-	in, out uint64
+	in  uint64
+	out uint64
 }
 
-type Revision struct {
-	Firmware string
-	Hdw      string
-	Software string
+type Status struct {
+	admin string `oid:"ifAdminStatus"`
+	oper  string `oid:"ifOperStatus"`
 }
 
+// 100 Timeticks = 1sec
 type Iface struct {
-	adminStatus string
-	alias       string
-	brd         Pkts
-	desc        string
-	discards    Pkts
-	errors      Pkts
-	hiSpeed     string
-	ifIndex     int
-	ifType      string
-	lastChange  uint64 // 100 Timeticks = 1sec
-	mac         string
-	mcst        Pkts
-	mtu         string
-	name        string
-	oct         Pkts
-	operStatus  string
-	pauseFrames Pkts
-	ucst        Pkts
+	Status
+	brd          Pkts `oid:"ifInBroadcastPkts,ifOutBroadcastPkts"`
+	bytes        Pkts `oid:"ifInOctets,ifOutOctets"`
+	connector    bool `oid:"ifConnectorPresent"`
+	discards     Pkts `oid:"ifInDiscards,ifOutDiscards"`
+	errors       Pkts `oid:"ifInErrors,ifOutErrors"`
+	ifAlias      string
+	ifDescr      string
+	ifHighSpeed  string
+	ifIndex      int
+	ifLastChange uint64
+	ifName       string
+	ifType       string
+	ips          []string
+	mac          string `oid:"ifPhysAddress"`
+	mcst         Pkts   `oid:"ifInMulticastPkts,ifOutMulticastPkts"`
+	mtu          string
+	name         string `oid:"ifName"`
+	pauseFrames  Pkts
+	promisc      bool `oid:"ifPromiscuousMode"`
+	traps        bool `oid:"ifLinkUpDownTrapEnable"`
+	ucst         Pkts `oid:"ifInUcastPkts"`
 }
 
 type MemPool struct {
-	Free     uint
-	PoolType string
-	Used     uint
+	Free uint
+	Type string
+	Used uint
+}
+
+type Revision struct {
+	Firmware string `oid:"entPhysicalFirmwareRev"`
+	Hdw      string `oid:"entPhysicalHardwareRev"`
+	Software string `oid:"entPhysicalSoftwareRev"`
 }
 
 type PhysHdw struct {
-	Alias  string
-	Asset  string
-	Class  PhysClass
-	Desc   string
-	FRU    bool
-	Mfg    string
-	Model  string
-	Name   string
-	Rev    Revision
-	Serial string
-	Vendor string
+	Revision
+	Alias  string    `oid:"entPhysicalAlias"`
+	Asset  string    `oid:"entPhysicalAssetID"`
+	Class  PhysClass `oid:"entPhysicalClass"`
+	Desc   string    `oid:"entPhysicalDescr"`
+	FRU    bool      `oid:"entPhysicalIsFRU"`
+	Mfg    string    `oid:"entPhysicalMfgName"` //arista
+	Model  string    `oid:"entPhysicalModelName"`
+	Name   string    `oid:"entPhysicalName"` //cisco only
+	Serial string    `oid:"entPhysicalSerialNum"`
+	Vendor string    `oid:"entPhysicalVendorType"` //cisco only
 }
 
 type GenericDevice struct {
 	Community string
 	Cpu       int
-	Desc      string
+	Desc      string `oid:"sysDescr"`
 	Hardware  map[int]PhysHdw
 	Hostname  string
 	Mem       []MemPool
 	Ports     map[int]Iface
+	Uptime    int `oid:"sysUpTime"` // Timeticks = 1sec / 100
+	fruIndex  []int
 }
 
 type CiscoSwitch struct {
@@ -96,8 +109,25 @@ func (s *CiscoSwitch) Check() {
 func (s *CiscoSwitch) BuildIface() {
 }
 
+type AristaCpu struct {
+	Desc   string `oid:"hrDeviceDescr"`
+	Status int    `oid:"hrDeviceStatus"`
+	Load   int    `oid:"hrProcessorLoad"`
+}
+
+type AristaMemPool struct {
+	Type string `oid:"hrStorageType"`
+	Desc string `oid:"hrStorageDescr"`
+	Unit string `oid:"hrStorageAllocationUnits"`
+	Size uint   `oid:"hrStorageSize"`
+	Used uint   `oid:"hrStorageUsed"`
+}
+
 type AristaSwitch struct {
 	GenericDevice
+	MemSize int `oid:"hrMemorySize"`
+	Mem     []AristaMemPool
+	Cpu     []AristaCpu
 }
 
 // Implements SnmpDevice interface, takes host and community as arguments.
