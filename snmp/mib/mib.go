@@ -44,6 +44,7 @@ func Lookup(prefix string) (asn1.ObjectIdentifier, error) {
 		"-M", "+"+mibDir,
 		"-m", "all",
 		"-On",
+		"-IR",
 		prefix,
 	)
 	stdout := new(bytes.Buffer)
