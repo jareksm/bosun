@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"reflect"
-	"runtime/pprof"
 
+	"strconv"
+
+	"bosun.org/cmd/scollector/snmpDev"
 	"bosun.org/snmp"
 	"github.com/davecgh/go-spew/spew"
 )
@@ -22,13 +23,9 @@ type OIDs struct {
 }
 
 func main() {
-	var a interface{}
-	f, _ := os.Create("snmptst.cpu")
-	defer f.Close()
-	fh, _ := os.Create("snmptst.heap")
-	defer fh.Close()
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
+	dev := snmpDev.GenericDevice{Hardware: make(map[int]snmpDev.PhysHdw, 100)}
+	spew.Dump(dev)
+	var a []byte
 
 	st := reflect.TypeOf(OIDs{})
 	n := st.NumField()
@@ -49,14 +46,26 @@ func main() {
 		fmt.Println(err)
 
 		for v.Next() {
-			id, err := v.Scan(&a)
+			x, err := v.Scan(&a)
+			id := x.(int)
+
 			if err != nil {
 				fmt.Println(err)
 				break
 			}
-			spew.Dump(id)
-			spew.Dump(a)
+			sph := snmpDev.PhysHdw{}
+			switch oid {
+			case "entPhysicalDescr":
+				sph.Desc = string(a)
+			case "entPhysicalVendorType":
+				sph.Vendor = string(a)
+			case "entPhysicalClass":
+				num, _ := strconv.Atoi(string(a))
+				sph.Class = snmpDev.PhysClass(num)
+			}
+			dev.Hardware[id] = sph
+
 		}
+		spew.Dump(dev)
 	}
-	pprof.WriteHeapProfile(fh)
 }

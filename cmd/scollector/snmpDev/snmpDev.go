@@ -69,8 +69,8 @@ type PhysHdw struct {
 }
 
 type GenericDevice struct {
-	Ports    []Iface
-	Hardware []PhysHdw
+	Ports    map[int]Iface
+	Hardware map[int]PhysHdw
 }
 
 type CiscoSwitch struct {
