@@ -75,11 +75,13 @@ type PhysHdw struct {
 }
 
 type GenericDevice struct {
-	Ports    map[int]Iface
-	Hardware map[int]PhysHdw
-	Mem      []MemPool
-	Cpu      int
-	Desc     string
+	Ports     map[int]Iface
+	Hardware  map[int]PhysHdw
+	Mem       []MemPool
+	Cpu       int
+	Desc      string
+	Hostname  string
+	Community string
 }
 
 type CiscoSwitch struct {
