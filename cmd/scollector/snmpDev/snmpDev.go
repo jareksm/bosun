@@ -28,60 +28,60 @@ type Pkts struct {
 }
 
 type Revision struct {
-	Hdw      string
 	Firmware string
+	Hdw      string
 	Software string
 }
 
 type Iface struct {
-	ifIndex     int
-	name        string
-	alias       string
-	desc        string
-	ifType      string
-	mtu         string
-	mac         string
-	hiSpeed     string
 	adminStatus string
-	operStatus  string
-	lastChange  uint64 // 100 Timeticks = 1sec
+	alias       string
 	brd         Pkts
-	mcst        Pkts
-	ucst        Pkts
-	oct         Pkts
+	desc        string
 	discards    Pkts
 	errors      Pkts
+	hiSpeed     string
+	ifIndex     int
+	ifType      string
+	lastChange  uint64 // 100 Timeticks = 1sec
+	mac         string
+	mcst        Pkts
+	mtu         string
+	name        string
+	oct         Pkts
+	operStatus  string
 	pauseFrames Pkts
+	ucst        Pkts
 }
 
 type MemPool struct {
+	Free     uint
 	PoolType string
 	Used     uint
-	Free     uint
 }
 
 type PhysHdw struct {
-	Desc   string
-	Vendor string
+	Alias  string
+	Asset  string
 	Class  PhysClass
+	Desc   string
+	FRU    bool
+	Mfg    string
+	Model  string
 	Name   string
 	Rev    Revision
 	Serial string
-	Mfg    string
-	Model  string
-	Alias  string
-	Asset  string
-	FRU    bool
+	Vendor string
 }
 
 type GenericDevice struct {
-	Ports     map[int]Iface
-	Hardware  map[int]PhysHdw
-	Mem       []MemPool
+	Community string
 	Cpu       int
 	Desc      string
+	Hardware  map[int]PhysHdw
 	Hostname  string
-	Community string
+	Mem       []MemPool
+	Ports     map[int]Iface
 }
 
 type CiscoSwitch struct {
