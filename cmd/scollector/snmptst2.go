@@ -21,12 +21,11 @@ type OIDs struct {
 }
 
 func main() {
-	var a []byte
 
-	//st := reflect.TypeOf(snmpDev.GenericDevice{})
-	//sv := reflect.ValueOf(snmpDev.GenericDevice{})
-	st := reflect.TypeOf(snmpDev.LldpPort{})
-	sv := reflect.ValueOf(snmpDev.LldpPort{})
+	st := reflect.TypeOf(snmpDev.PhysHdw{})
+	sv := reflect.ValueOf(snmpDev.PhysHdw{})
+	//st := reflect.TypeOf(snmpDev.LldpPort{})
+	//sv := reflect.ValueOf(snmpDev.LldpPort{})
 	n := st.NumField()
 	oid := ""
 	for i := 0; i < n; i++ {
@@ -36,6 +35,7 @@ func main() {
 		case reflect.Map, reflect.Slice:
 			continue
 		case reflect.Struct:
+			fmt.Println("Field is a struct!")
 			spew.Dump(sv.Field(i).Kind())
 			continue
 		}
@@ -45,19 +45,22 @@ func main() {
 			continue
 		}
 		fmt.Println(oid)
-		v, err := snmp.Walk("todclsp02b", "public", "lldpLocPortTable")
+		v, err := snmp.Walk("todclsp02b", "public", oid)
 		if err != nil {
-			continue
 			fmt.Println(err)
 		}
 
+		fmt.Println("spewing V!")
+		spew.Dump(v)
 		for v.Next() {
+			var a []byte
 			x, _ := v.Scan(&a)
-			id := x.(int)
-
-			spew.Dump(x)
-			spew.Dump(id)
-			spew.Dump(a)
+			if x != nil && a != nil && len(a) > 0 {
+				fmt.Println("spewing X!")
+				spew.Dump(x)
+				fmt.Println("spewing A!")
+				spew.Dump(a)
+			}
 		}
 	}
 }

@@ -23,7 +23,7 @@ type OIDs struct {
 }
 
 func main() {
-	dev := snmpDev.GenericDevice{Hardware: make(map[int]snmpDev.PhysHdw, 100)}
+	dev := snmpDev.PhysHdw{}
 	spew.Dump(dev)
 	var a []byte
 
