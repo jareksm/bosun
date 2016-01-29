@@ -23,6 +23,18 @@ const (
 	cpu
 )
 
+type PortSubtype int
+
+const (
+	interfaceAlias PortSubtype = iota + 1
+	portComponent
+	macAddress
+	networkAddress
+	interfaceName
+	agentCircuitId
+	local
+)
+
 type Pkts struct {
 	in  uint64
 	out uint64
@@ -31,6 +43,15 @@ type Pkts struct {
 type Status struct {
 	admin string `oid:"ifAdminStatus"`
 	oper  string `oid:"ifOperStatus"`
+}
+
+type LldpPort struct {
+	LocDesc      string `oid:"lldpLocPortDesc"`
+	LocId        string `oid:"lldpLocPortId"`
+	RemMac       string `oid:"lldpRemChassisId"`
+	RemId        string `oid:"lldpRemPortId"`
+	RemIdSubtype string `oid:"lldpRemPortIdSubtype"`
+	RemDesc      string `oid:"lldpRemSysName"`
 }
 
 // 100 Timeticks = 1sec
@@ -51,18 +72,34 @@ type Iface struct {
 	ips          []string
 	mac          string `oid:"ifPhysAddress"`
 	mcst         Pkts   `oid:"ifInMulticastPkts,ifOutMulticastPkts"`
-	mtu          string
+	mtu          int    `oid:"ifMtu:`
 	name         string `oid:"ifName"`
-	pauseFrames  Pkts
-	promisc      bool `oid:"ifPromiscuousMode"`
-	traps        bool `oid:"ifLinkUpDownTrapEnable"`
-	ucst         Pkts `oid:"ifInUcastPkts"`
+	pauseFrames  Pkts   `oid:"dot3InPauseFrames,dot3OutPauseFrames"`
+	promisc      bool   `oid:"ifPromiscuousMode"`
+	traps        bool   `oid:"ifLinkUpDownTrapEnable"`
+	ucst         Pkts   `oid:"ifInUcastPkts"`
+}
+
+type AristaCpu struct {
+	Desc   string `oid:"hrDeviceDescr"`
+	Status int    `oid:"hrDeviceStatus"`
+	Load   int    `oid:"hrProcessorLoad"`
+}
+
+type AristaMemPool struct {
+	Type string `oid:"hrStorageType"`
+	Desc string `oid:"hrStorageDescr"`
+	Unit string `oid:"hrStorageAllocationUnits"`
+	Size uint   `oid:"hrStorageSize"`
+	Used uint   `oid:"hrStorageUsed"`
 }
 
 type MemPool struct {
-	Free uint
-	Type string
-	Used uint
+	Free        uint   `oid:"ciscoMemoryPoolFree"`
+	Type        string `oid:"ciscoMemoryPoolName"`
+	Used        uint   `oid:"ciscoMemoryPoolUsed"`
+	LargestFree uint   `oid:"ciscoMemoryPoolLargestFree"`
+	Valid       int    `oid:"ciscoMemoryPoolValid"`
 }
 
 type Revision struct {
@@ -86,19 +123,17 @@ type PhysHdw struct {
 }
 
 type GenericDevice struct {
-	Community string
-	Cpu       int
-	Desc      string `oid:"sysDescr"`
-	Hardware  map[int]PhysHdw
-	Hostname  string
-	Mem       []MemPool
-	Ports     map[int]Iface
-	Uptime    int `oid:"sysUpTime"` // Timeticks = 1sec / 100
-	fruIndex  []int
+	Desc     string `oid:"sysDescr"`
+	Hardware map[int]PhysHdw
+	Hostname string `oid:"sysName"`
+	Mem      map[int]MemPool
+	Ports    map[int]Iface
+	Uptime   int `oid:"sysUpTime"` // Timeticks = 1sec / 100
 }
 
 type CiscoSwitch struct {
 	GenericDevice
+	Cpu int
 }
 
 // Implements SnmpDevice interface, takes host and community as arguments.
@@ -109,24 +144,10 @@ func (s *CiscoSwitch) Check() {
 func (s *CiscoSwitch) BuildIface() {
 }
 
-type AristaCpu struct {
-	Desc   string `oid:"hrDeviceDescr"`
-	Status int    `oid:"hrDeviceStatus"`
-	Load   int    `oid:"hrProcessorLoad"`
-}
-
-type AristaMemPool struct {
-	Type string `oid:"hrStorageType"`
-	Desc string `oid:"hrStorageDescr"`
-	Unit string `oid:"hrStorageAllocationUnits"`
-	Size uint   `oid:"hrStorageSize"`
-	Used uint   `oid:"hrStorageUsed"`
-}
-
 type AristaSwitch struct {
 	GenericDevice
 	MemSize int `oid:"hrMemorySize"`
-	Mem     []AristaMemPool
+	Mem     map[int]AristaMemPool
 	Cpu     []AristaCpu
 }
 

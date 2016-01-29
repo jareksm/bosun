@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"strconv"
-
 	"bosun.org/cmd/scollector/snmpDev"
 	"bosun.org/snmp"
 	"github.com/davecgh/go-spew/spew"
@@ -23,13 +21,13 @@ type OIDs struct {
 }
 
 func main() {
-	dev := snmpDev.GenericDevice{Hardware: make(map[int]snmpDev.PhysHdw, 100)}
-	spew.Dump(dev)
 	var a []byte
 
-	st := reflect.TypeOf(snmpDev.GenericDevice{})
+	//st := reflect.TypeOf(snmpDev.GenericDevice{})
+	//sv := reflect.ValueOf(snmpDev.GenericDevice{})
+	st := reflect.TypeOf(snmpDev.LldpPort{})
+	sv := reflect.ValueOf(snmpDev.LldpPort{})
 	n := st.NumField()
-	sv := reflect.ValueOf(snmpDev.GenericDevice{})
 	oid := ""
 	for i := 0; i < n; i++ {
 		field := st.Field(i)
@@ -47,36 +45,19 @@ func main() {
 			continue
 		}
 		fmt.Println(oid)
-		v, err := snmp.Walk("todclsp02b", "public", oid)
+		v, err := snmp.Walk("todclsp02b", "public", "lldpLocPortTable")
 		if err != nil {
 			continue
 			fmt.Println(err)
 		}
 
 		for v.Next() {
-			x, err := v.Scan(&a)
-			if a == nil || x == nil {
-				continue
-			}
+			x, _ := v.Scan(&a)
 			id := x.(int)
 
-			if err != nil {
-				fmt.Println(err)
-				break
-			}
-			sph := snmpDev.PhysHdw{}
-			switch oid {
-			case "entPhysicalDescr":
-				sph.Desc = string(a)
-			case "entPhysicalVendorType":
-				sph.Vendor = string(a)
-			case "entPhysicalClass":
-				num, _ := strconv.Atoi(string(a))
-				sph.Class = snmpDev.PhysClass(num)
-			}
-			dev.Hardware[id] = sph
-
+			spew.Dump(x)
+			spew.Dump(id)
+			spew.Dump(a)
 		}
-		spew.Dump(dev)
 	}
 }
