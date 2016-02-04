@@ -3,10 +3,12 @@ package collectors
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hkwi/nlgo"
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"bosun.org/cmd/scollector/conf"
@@ -15,7 +17,42 @@ import (
 	"bosun.org/util"
 )
 
+type nlConn struct {
+	hub *nlgo.RtHub
+	req syscall.NetlinkMessage
+}
+
+var nlc *nlConn
+
+func NewNlConn() *nlConn {
+	nlHub := nlConn{}
+	var err error
+	if nlHub.hub, err = nlgo.NewRtHub(); err != nil {
+		//skip
+	}
+	defer nlHub.hub.Close()
+	nlHub.req = syscall.NetlinkMessage{
+		Header: syscall.NlMsghdr{
+			Type: syscall.RTM_GETLINK,
+			Flags: syscall.NLM_F_DUMP,
+		},
+	}
+	(*nlgo.IfInfoMessage)(&nlHub.req).Set(
+		syscall.IfInfomsg{},
+		nlgo.AttrSlice{
+			nlgo.Attr{
+				Header: syscall.NlAttr{
+					Type: syscall.IFLA_IFNAME,
+				},
+				Value: nlgo.NulString(""),
+			},
+		},
+	)
+	return &nlHub
+}
+
 func init() {
+	nlc = NewNlConn()
 	registerInit(func(c *conf.Conf) {
 		if c.IfaceExpr != "" {
 			ifstatRE = regexp.MustCompile(fmt.Sprintf("(%s):(.*)", c.IfaceExpr))
