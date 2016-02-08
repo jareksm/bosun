@@ -6,6 +6,39 @@ import (
 	"bosun.org/opentsdb"
 )
 
+func BenchmarkSimpleRewrite(b *testing.B) {
+	rule := &DenormalizationRule{
+		Metric:   "a.b.c",
+		TagNames: []string{"host"},
+	}
+	tags := opentsdb.TagSet{"host": "foo-bar", "baz": "qwerty"}
+	dp := &opentsdb.DataPoint{
+		Metric:    "a.b.c",
+		Timestamp: 42,
+		Value:     3,
+		Tags:      tags.Copy(),
+	}
+	for i := 0; i < b.N; i++ {
+		err := rule.Translate(dp)
+		if err != nil {
+			b.Fatal(err)
+		}
+		//expectedName := "__foo-bar.a.b.c"
+		/*	if dp.Metric != expectedName {
+					b.Errorf("metric name %s is not `%s`", dp.Metric, expectedName)
+				}
+				if dp.Timestamp != 42 {
+					b.Errorf("new metric timestamp does not match. %d != 42", dp.Timestamp)
+				}
+				if dp.Value != 3 {
+					b.Errorf("new metric value does not match. %d != 3", dp.Value)
+				}
+				if !dp.Tags.Equal(tags) {
+					b.Errorf("new metric tags do not match. %v != %v", dp.Tags, tags)
+		        } */
+	}
+}
+
 func TestSimpleRewrite(t *testing.T) {
 	rule := &DenormalizationRule{
 		Metric:   "a.b.c",
