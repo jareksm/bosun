@@ -204,7 +204,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		}
 		irq_type := strings.TrimRight(cols[0], ":")
 		if _, err := strconv.Atoi(irq_type); err == nil {
-			if cols[len(cols)-2] == "PCI-MSI-edge" && strings.Contains(cols[len(cols)-1], "eth") {
+			if len(cols) == num_cpus+3 && strings.HasPrefix(cols[num_cpus+1], "IR-") {
 				irq_type = cols[len(cols)-1]
 			} else {
 				// Interrupt type is just a number, ignore.
