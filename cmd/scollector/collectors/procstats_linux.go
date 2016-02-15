@@ -8,13 +8,14 @@ import (
 	"bosun.org/_third_party/golang.org/x/sys/unix"
 	"bosun.org/metadata"
 	"bosun.org/opentsdb"
+	"bosun.org/slog"
 )
 
 func init() {
 	collectors = append(collectors, &IntervalCollector{F: c_procstats_linux})
 }
 
-var CPU_FIELDS = []string{
+var cpu_fields = []string{
 	"user",
 	"nice",
 	"system",
@@ -25,6 +26,19 @@ var CPU_FIELDS = []string{
 	"steal",
 	"guest",
 	"guest_nice",
+}
+
+var cpu_stat_desc = []string{
+	"Normal processes executing in user mode.",
+	"Niced processes executing in user mode.",
+	"Processes executing in kernel mode.",
+	"Twiddling thumbs.",
+	"Waiting for I/O to complete.",
+	"Servicing interrupts.",
+	"Servicing soft irqs.",
+	"Involuntary wait.",
+	"Running a guest vm.",
+	"Running a niced guest vm.",
 }
 
 func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
@@ -47,6 +61,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		return nil
 	}); err != nil {
 		Error = err
+		slog.Errorln(err)
 	}
 	Add(&md, osMemTotal, sys.Totalram*uint64(sys.Unit), nil, metadata.Gauge, metadata.Bytes, osMemTotalDesc)
 	Add(&md, osMemFree, sys.Freeram*uint64(sys.Unit), nil, metadata.Gauge, metadata.Bytes, osMemFreeDesc)
@@ -78,24 +93,13 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		}
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	num_cores := 0
 	var t_util int
-	cpu_stat_desc := map[string]string{
-		"user":       "Normal processes executing in user mode.",
-		"nice":       "Niced processes executing in user mode.",
-		"system":     "Processes executing in kernel mode.",
-		"idle":       "Twiddling thumbs.",
-		"iowait":     "Waiting for I/O to complete.",
-		"irq":        "Servicing interrupts.",
-		"softirq":    "Servicing soft irqs.",
-		"steal":      "Involuntary wait.",
-		"guest":      "Running a guest vm.",
-		"guest_nice": "Running a niced guest vm.",
-	}
 	if err := readLine("/proc/stat", func(s string) error {
-		m := strings.Split(s, " ")
+		m := strings.Fields(s)
 		if m == nil {
 			return nil
 		}
@@ -106,17 +110,17 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 				num_cores++
 			}
 			for i, value := range m[1:] {
-				if i >= len(CPU_FIELDS) {
+				if i >= len(cpu_fields) {
 					break
 				}
 				tags := opentsdb.TagSet{
-					"type": CPU_FIELDS[i],
+					"type": cpu_fields[i],
 				}
 				if tag_cpu != "" {
 					tags["cpu"] = tag_cpu
-					Add(&md, "linux.cpu.percpu", value, tags, metadata.Counter, metadata.CHz, cpu_stat_desc[CPU_FIELDS[i]])
+					Add(&md, "linux.cpu.percpu", value, tags, metadata.Counter, metadata.CHz, cpu_stat_desc[i])
 				} else {
-					Add(&md, "linux.cpu", value, tags, metadata.Counter, metadata.CHz, cpu_stat_desc[CPU_FIELDS[i]])
+					Add(&md, "linux.cpu", value, tags, metadata.Counter, metadata.CHz, cpu_stat_desc[i])
 				}
 			}
 			if tag_cpu == "" {
@@ -125,14 +129,17 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 				}
 				user, err := strconv.Atoi(m[1])
 				if err != nil {
+					slog.Errorln(err)
 					return nil
 				}
 				nice, err := strconv.Atoi(m[2])
 				if err != nil {
+					slog.Errorln(err)
 					return nil
 				}
 				system, err := strconv.Atoi(m[3])
 				if err != nil {
+					slog.Errorln(err)
 					return nil
 				}
 				t_util = user + nice + system
@@ -149,6 +156,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		}
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	if num_cores != 0 && t_util != 0 {
@@ -171,12 +179,14 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		cpuinfo_index++
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	if err := readLine("/proc/sys/kernel/random/entropy_avail", func(s string) error {
 		Add(&md, "linux.entropy_avail", strings.TrimSpace(s), nil, metadata.Gauge, metadata.Entropy, "The remaing amount of entropy available to the system. If it is low or hitting zero processes might be blocked waiting for extropy")
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	irq_type_desc := map[string]string{
@@ -204,11 +214,8 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		}
 		irq_type := strings.TrimRight(cols[0], ":")
 		if _, err := strconv.Atoi(irq_type); err == nil {
-			if len(cols) == num_cpus+3 && strings.HasPrefix(cols[num_cpus+1], "IR-") {
-				irq_type = cols[len(cols)-1]
-			} else {
-				// Interrupt type is just a number, ignore.
-				return nil
+			if len(cols) >= num_cpus+3 && (strings.HasPrefix(cols[num_cpus+1], "IR-") || strings.HasPrefix(cols[num_cpus+1], "IO-") || strings.HasPrefix(cols[num_cpus+1], "PCI-")) {
+				irq_type = strings.Join(cols[len(cols)-1:], " ")
 			}
 		} else {
 			return nil
@@ -216,12 +223,14 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		for i, val := range cols[1:] {
 			if _, err := strconv.Atoi(val); i >= num_cpus || err != nil {
 				// All values read, remaining cols contain textual description.
+				slog.Errorln(err)
 				break
 			}
 			Add(&md, "linux.interrupts", val, opentsdb.TagSet{"type": irq_type, "cpu": strconv.Itoa(i)}, metadata.Counter, metadata.Interupt, irq_type_desc[irq_type])
 		}
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	if err := readLine("/proc/net/sockstat", func(s string) error {
@@ -266,6 +275,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		}
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	ln := 0
@@ -288,6 +298,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		ln++
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	ln = 0
@@ -319,6 +330,7 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		}
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	if err := readLine("/proc/sys/fs/file-nr", func(s string) error {
@@ -328,11 +340,13 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		}
 		v, err := strconv.ParseInt(f[0], 10, 64)
 		if err != nil {
+			slog.Errorln(err)
 			return err
 		}
 		Add(&md, "linux.fs.open", v, nil, metadata.Gauge, metadata.Count, "The number of files presently open.")
 		return nil
 	}); err != nil {
+		slog.Errorln(err)
 		Error = err
 	}
 	return md, Error
