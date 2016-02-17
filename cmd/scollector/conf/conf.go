@@ -65,6 +65,7 @@ type Conf struct {
 	ExtraHop            []ExtraHop
 	LocalListener       string
 	HadoopHost          string
+	TagOverride         []TagOverride
 }
 
 type HAProxy struct {
@@ -185,4 +186,10 @@ type ExtraHop struct {
 	APIKey        string
 	FilterBy      string
 	FilterPercent int
+}
+
+type TagOverride struct {
+	CollectorExpr string
+	MatchedTags   map[string]string
+	Tags          map[string]string
 }
