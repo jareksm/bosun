@@ -13,6 +13,12 @@ import (
 
 func init() {
 	collectors = append(collectors, &IntervalCollector{F: c_procstats_linux})
+	collectors = append(collectors, &IntervalCollector{F: c_proc_cpustat_linux})
+	collectors = append(collectors, &IntervalCollector{F: c_proc_entropy_linux})
+	collectors = append(collectors, &IntervalCollector{F: c_proc_irq_linux})
+	collectors = append(collectors, &IntervalCollector{F: c_proc_net_sockstat_linux})
+	collectors = append(collectors, &IntervalCollector{F: c_proc_netstat_linux})
+	collectors = append(collectors, &IntervalCollector{F: c_proc_fs_files_nr_linux})
 }
 
 var cpu_fields = []string{
@@ -96,6 +102,12 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		slog.Errorln(err)
 		Error = err
 	}
+	return md, Error
+}
+
+func c_proc_cpustat_linux() (opentsdb.MultiDataPoint, error) {
+	var md opentsdb.MultiDataPoint
+	var Error error
 	num_cores := 0
 	var t_util int
 	if err := readLine("/proc/stat", func(s string) error {
@@ -182,6 +194,12 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		slog.Errorln(err)
 		Error = err
 	}
+	return md, Error
+}
+
+func c_proc_entropy_linux() (opentsdb.MultiDataPoint, error) {
+	var md opentsdb.MultiDataPoint
+	var Error error
 	if err := readLine("/proc/sys/kernel/random/entropy_avail", func(s string) error {
 		Add(&md, "linux.entropy_avail", strings.TrimSpace(s), nil, metadata.Gauge, metadata.Entropy, "The remaing amount of entropy available to the system. If it is low or hitting zero processes might be blocked waiting for extropy")
 		return nil
@@ -189,6 +207,12 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		slog.Errorln(err)
 		Error = err
 	}
+	return md, Error
+}
+
+func c_proc_irq_linux() (opentsdb.MultiDataPoint, error) {
+	var md opentsdb.MultiDataPoint
+	var Error error
 	irq_type_desc := map[string]string{
 		"NMI": "Non-maskable interrupts.",
 		"LOC": "Local timer interrupts.",
@@ -239,6 +263,12 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		slog.Errorln(err)
 		Error = err
 	}
+	return md, Error
+}
+
+func c_proc_net_sockstat_linux() (opentsdb.MultiDataPoint, error) {
+	var md opentsdb.MultiDataPoint
+	var Error error
 	if err := readLine("/proc/net/sockstat", func(s string) error {
 		cols := strings.Fields(s)
 		switch cols[0] {
@@ -284,6 +314,13 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		slog.Errorln(err)
 		Error = err
 	}
+	return md, Error
+}
+
+func c_proc_netstat_linux() (opentsdb.MultiDataPoint, error) {
+	var md opentsdb.MultiDataPoint
+	var Error error
+	return md, Error
 	ln := 0
 	var headers []string
 	if err := readLine("/proc/net/netstat", func(s string) error {
@@ -339,6 +376,12 @@ func c_procstats_linux() (opentsdb.MultiDataPoint, error) {
 		slog.Errorln(err)
 		Error = err
 	}
+	return md, Error
+}
+
+func c_proc_fs_files_nr_linux() (opentsdb.MultiDataPoint, error) {
+	var md opentsdb.MultiDataPoint
+	var Error error
 	if err := readLine("/proc/sys/fs/file-nr", func(s string) error {
 		f := strings.Fields(s)
 		if len(f) != 3 {
